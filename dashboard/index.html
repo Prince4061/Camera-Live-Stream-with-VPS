@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Cloud Camera Portal - Live CCTV Monitoring</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #070a12;
+      --card-bg: rgba(16, 22, 36, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --primary: #00f2fe;
+      --primary-glow: rgba(0, 242, 254, 0.25);
+      --live-green: #10b981;
+      --live-glow: rgba(16, 185, 129, 0.35);
+      --warn-amber: #f59e0b;
+      --danger: #ef4444;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background: radial-gradient(circle at 50% 0%, #111a2e 0%, var(--bg-dark) 75%);
+      color: var(--text-main);
+      font-family: 'Outfit', -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    .glow-sphere {
+      position: fixed;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+      top: -150px; left: 50%;
+      transform: translateX(-50%);
+      pointer-events: none; z-index: 0;
+    }
+
+    header {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(7, 10, 18, 0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; }
+
+    .brand-icon {
+      width: 38px; height: 38px; border-radius: 10px;
+      background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; box-shadow: 0 4px 15px var(--primary-glow);
+    }
+
+    .brand-text h1 {
+      font-size: 18px; font-weight: 700; letter-spacing: -0.3px;
+      background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    .brand-text p { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+
+    .header-status { display: flex; align-items: center; gap: 14px; }
+
+    .live-badge {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: rgba(148, 163, 184, 0.12);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      color: var(--text-muted);
+      padding: 5px 12px; border-radius: 20px;
+      font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
+      transition: all .25s ease;
+    }
+    .live-badge.is-live {
+      background: rgba(16, 185, 129, 0.12);
+      border-color: rgba(16, 185, 129, 0.3);
+      color: var(--live-green);
+    }
+    .live-badge.is-warn {
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.35);
+      color: var(--warn-amber);
+    }
+    .live-badge.is-off {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.35);
+      color: var(--danger);
+    }
+
+    .live-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: currentColor; box-shadow: 0 0 10px currentColor;
+    }
+    .is-live .live-dot { animation: pulse 1.6s infinite ease-in-out; }
+    .is-warn .live-dot { animation: pulse 1s infinite ease-in-out; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .clock { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--text-muted); display: none; }
+    @media (min-width: 640px) { .clock { display: block; } }
+
+    main { flex: 1; max-width: 1200px; width: 100%; margin: 0 auto; padding: 20px; z-index: 1; }
+
+    .controls-wrapper {
+      display: flex; flex-wrap: wrap; align-items: center;
+      justify-content: space-between; gap: 12px; margin-bottom: 16px;
+    }
+
+    .pill-group {
+      display: inline-flex; background: rgba(255, 255, 255, 0.04);
+      padding: 3px; border-radius: 12px; border: 1px solid var(--card-border);
+    }
+
+    .pill-btn {
+      background: transparent; border: none; color: var(--text-muted);
+      font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 500;
+      padding: 7px 16px; border-radius: 9px; cursor: pointer;
+      transition: all 0.2s ease; display: flex; align-items: center; gap: 6px;
+    }
+
+    .pill-btn.active {
+      background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+      color: #070a12; font-weight: 600; box-shadow: 0 2px 10px var(--primary-glow);
+    }
+
+    .action-group { display: flex; align-items: center; gap: 10px; }
+
+    .action-btn {
+      background: rgba(255, 255, 255, 0.05); border: 1px solid var(--card-border);
+      color: var(--text-main); padding: 8px 16px; border-radius: 10px;
+      font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 500;
+      cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+      transition: all 0.2s ease;
+    }
+
+    .action-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+
+    .video-card {
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 20px; overflow: hidden; position: relative;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6); backdrop-filter: blur(12px);
+    }
+
+    .video-viewport {
+      position: relative; width: 100%; aspect-ratio: 16 / 9;
+      background: #000; overflow: hidden;
+    }
+
+    #video { width: 100%; height: 100%; display: block; background: #000; object-fit: contain; }
+
+    .video-overlay-meta {
+      position: absolute; top: 14px; left: 14px;
+      background: rgba(0, 0, 0, 0.65); backdrop-filter: blur(8px);
+      padding: 6px 14px; border-radius: 8px;
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.5px;
+      color: #e2e8f0; pointer-events: none;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    /* Shown when the feed is not playing */
+    .stage-message {
+      position: absolute; inset: 0;
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 10px;
+      text-align: center; padding: 24px;
+      background: radial-gradient(circle at 50% 45%, rgba(17, 26, 46, 0.92), #04060c 80%);
+      z-index: 5;
+    }
+    .stage-message.show { display: flex; }
+    .stage-message .icon { font-size: 34px; opacity: .9; }
+    .stage-message .title { font-size: 16px; font-weight: 600; }
+    .stage-message .sub { font-size: 12.5px; color: var(--text-muted); max-width: 420px; line-height: 1.5; }
+    .stage-message .spinner {
+      width: 26px; height: 26px; border-radius: 50%;
+      border: 2.5px solid rgba(255,255,255,.15); border-top-color: var(--primary);
+      animation: spin 900ms linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .telemetry-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px; margin-top: 20px;
+    }
+
+    .meta-card {
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 14px; padding: 16px; backdrop-filter: blur(8px);
+    }
+
+    .meta-title {
+      font-size: 11px; color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.6px; margin-bottom: 6px; font-weight: 600;
+    }
+
+    .meta-value { font-size: 15px; font-weight: 600; font-family: 'JetBrains Mono', monospace; color: var(--text-main); }
+    .meta-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+    .pin-modal {
+      position: fixed; inset: 0; background: rgba(7, 10, 18, 0.95);
+      backdrop-filter: blur(20px); z-index: 100;
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+
+    .pin-box {
+      background: rgba(22, 29, 47, 0.9); border: 1px solid var(--card-border);
+      border-radius: 20px; padding: 32px 28px; width: 100%; max-width: 360px;
+      text-align: center; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7);
+    }
+
+    .lock-icon { font-size: 38px; margin-bottom: 12px; display: inline-block; filter: drop-shadow(0 0 12px var(--primary-glow)); }
+    .pin-box h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+    .pin-box p { font-size: 13px; color: var(--text-muted); margin-bottom: 22px; }
+
+    .pin-input {
+      width: 100%; background: rgba(7, 10, 18, 0.7);
+      border: 1.5px solid var(--card-border); border-radius: 12px;
+      padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 20px;
+      text-align: center; letter-spacing: 8px; color: var(--primary);
+      outline: none; transition: all 0.2s ease; margin-bottom: 16px;
+    }
+
+    .pin-input:focus { border-color: var(--primary); box-shadow: 0 0 15px var(--primary-glow); }
+
+    .unlock-btn {
+      width: 100%; background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+      color: #070a12; border: none; padding: 12px; border-radius: 12px;
+      font-weight: 700; font-size: 15px; cursor: pointer;
+      box-shadow: 0 4px 15px var(--primary-glow); transition: transform 0.15s ease;
+    }
+
+    .unlock-btn:hover { transform: scale(1.02); }
+    .pin-hint { font-size: 11px; color: var(--text-muted); margin-top: 14px; }
+
+    footer {
+      border-top: 1px solid var(--card-border); padding: 16px 24px;
+      text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 30px;
+    }
+
+    #toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: rgba(16, 22, 36, 0.95); border: 1px solid var(--primary);
+      color: var(--text-main); padding: 12px 20px; border-radius: 12px;
+      font-size: 13px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      transform: translateY(100px); opacity: 0;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); z-index: 200;
+    }
+
+    #toast.show { transform: translateY(0); opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="glow-sphere"></div>
+
+  <!-- PIN lock -->
+  <div id="pinModal" class="pin-modal" style="display: none;">
+    <div class="pin-box">
+      <div class="lock-icon">🔒</div>
+      <h2>Protected Camera Feed</h2>
+      <p>Enter your 4-digit security PIN to open the live monitor.</p>
+      <input id="pinInput" type="password" inputmode="numeric" maxlength="4" class="pin-input" placeholder="••••" autofocus />
+      <button class="unlock-btn" onclick="verifyPin()">Access Camera</button>
+      <div class="pin-hint">Forgot it? Check <b>camera_pin.txt</b> on the streaming PC.</div>
+    </div>
+  </div>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon">📹</div>
+      <div class="brand-text">
+        <h1>Cloud Camera Portal</h1>
+        <p>VPS CLOUD RELAY &bull; <span id="hostLabel">87.232.72.64</span></p>
+      </div>
+    </div>
+
+    <div class="header-status">
+      <div id="statusBadge" class="live-badge is-off">
+        <span class="live-dot"></span>
+        <span id="statusText">CONNECTING</span>
+      </div>
+      <div id="clock" class="clock">--:--:-- IST</div>
+    </div>
+  </header>
+
+  <main>
+    <div class="controls-wrapper">
+      <div class="pill-group">
+        <button id="btnWebrtc" class="pill-btn active" onclick="switchProtocol('webrtc')">⚡ WebRTC (Low Latency)</button>
+        <button id="btnHls" class="pill-btn" onclick="switchProtocol('hls')">🌐 HLS (Mobile)</button>
+      </div>
+
+      <div class="action-group">
+        <button class="action-btn" onclick="toggleFullscreen()" title="Toggle fullscreen">⛶ Fullscreen</button>
+        <button class="action-btn" onclick="reloadStream(true)" title="Reconnect now">🔄 Refresh</button>
+      </div>
+    </div>
+
+    <div id="videoCard" class="video-card">
+      <div class="video-viewport">
+        <video id="video" autoplay muted playsinline></video>
+
+        <div class="video-overlay-meta">
+          <span id="overlayTag">Live Camera Feed</span>
+          <span>•</span>
+          <span id="overlayProto">WebRTC</span>
+        </div>
+
+        <div id="stageMessage" class="stage-message show">
+          <div id="stageSpinner" class="spinner"></div>
+          <div id="stageTitle" class="title">Connecting to camera…</div>
+          <div id="stageSub" class="sub">Establishing a secure low-latency link through the cloud relay.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="telemetry-grid">
+      <div class="meta-card">
+        <div class="meta-title">Camera</div>
+        <div class="meta-value">192.168.1.25</div>
+        <div class="meta-sub">RTSP • sub-stream (fast)</div>
+      </div>
+
+      <div class="meta-card">
+        <div class="meta-title">Cloud Relay</div>
+        <div class="meta-value" id="relayValue">87.232.72.64</div>
+        <div class="meta-sub">MediaMTX</div>
+      </div>
+
+      <div class="meta-card">
+        <div class="meta-title">Live Resolution</div>
+        <div class="meta-value" id="metaRes">—</div>
+        <div class="meta-sub" id="metaFps">Waiting for first frame</div>
+      </div>
+
+      <div class="meta-card">
+        <div class="meta-title">Latency Mode</div>
+        <div class="meta-value" id="metaLat">—</div>
+        <div class="meta-sub" id="metaLatSub">—</div>
+      </div>
+    </div>
+  </main>
+
+  <div id="toast">Stream refreshed!</div>
+
+  <footer>
+    Cloud Camera Management &bull; MediaMTX relay &bull; auto-reconnecting player
+  </footer>
+
+  <script>
+    /* ------------------------------------------------------------------
+       Config
+       ------------------------------------------------------------------ */
+    const HOST = window.location.hostname || '87.232.72.64';
+    const RTSP_PATH = 'camera';
+    const WHEP_URL = `http://${HOST}:8889/${RTSP_PATH}/whep`;
+    const HLS_URL = `http://${HOST}:8888/${RTSP_PATH}/index.m3u8`;
+    const HLS_JS = `http://${HOST}:8888/hls.min.js`;
+    const READER_JS = `http://${HOST}:8889/reader.js`;
+    const PIN = '1234';
+
+    const video = document.getElementById('video');
+    const stage = document.getElementById('stageMessage');
+    const stageSpinner = document.getElementById('stageSpinner');
+    const stageTitle = document.getElementById('stageTitle');
+    const stageSub = document.getElementById('stageSub');
+    const statusBadge = document.getElementById('statusBadge');
+    const statusText = document.getElementById('statusText');
+
+    let mode = 'webrtc';
+    let reader = null;
+    let hls = null;
+    let retryTimer = null;
+    let pollTimer = null;
+    let retryDelay = 2000;
+    let online = false;
+    let firstFrame = false;
+    let wrtcFails = 0;
+
+    document.getElementById('hostLabel').textContent = HOST;
+    document.getElementById('relayValue').textContent = HOST;
+
+    /* ------------------------------------------------------------------
+       Small helpers
+       ------------------------------------------------------------------ */
+    function setStatus(kind, text) {
+      statusBadge.className = 'live-badge ' +
+        (kind === 'live' ? 'is-live' : kind === 'warn' ? 'is-warn' : 'is-off');
+      statusText.textContent = text;
+    }
+
+    function showStage(title, sub, spinning) {
+      stage.classList.add('show');
+      stageTitle.textContent = title;
+      stageSub.textContent = sub || '';
+      stageSpinner.style.display = spinning ? 'block' : 'none';
+    }
+
+    function hideStage() {
+      stage.classList.remove('show');
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        if ([...document.scripts].some(s => s.src === src)) return resolve();
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error('Failed to load ' + src));
+        document.head.appendChild(s);
+      });
+    }
+
+    /* ------------------------------------------------------------------
+       Delivery-mode label / latency pill
+       ------------------------------------------------------------------ */
+    function updateModeLabels() {
+      const isWrtc = mode === 'webrtc';
+      document.getElementById('btnWebrtc').classList.toggle('active', isWrtc);
+      document.getElementById('btnHls').classList.toggle('active', !isWrtc);
+      document.getElementById('overlayProto').textContent = isWrtc ? 'WebRTC' : 'HLS';
+      document.getElementById('metaLat').textContent = isWrtc ? '~0.2–0.5 s' : '~2–4 s';
+      document.getElementById('metaLatSub').textContent = isWrtc
+        ? 'WebRTC direct (lowest delay)'
+        : 'HLS segments (most compatible)';
+    }
+
+    /* ------------------------------------------------------------------
+       Live FPS + resolution readout from the actual <video> element
+       ------------------------------------------------------------------ */
+    let frameCount = 0, fpsWindowStart = 0, fpsProbe = null;
+
+    function startFpsProbe() {
+      if (!('requestVideoFrameCallback' in HTMLVideoElement.prototype)) return;
+      frameCount = 0;
+      fpsWindowStart = performance.now();
+      if (fpsProbe) return;
+      const step = (now) => {
+        frameCount++;
+        if (now - fpsWindowStart >= 1000) {
+          const fps = Math.round((frameCount * 1000) / (now - fpsWindowStart));
+          if (video.videoWidth) {
+            document.getElementById('metaRes').textContent =
+              video.videoWidth + ' × ' + video.videoHeight;
+            document.getElementById('metaFps').textContent = fps + ' FPS • live';
+          }
+          frameCount = 0;
+          fpsWindowStart = now;
+        }
+        fpsProbe = video.requestVideoFrameCallback(step);
+      };
+      fpsProbe = video.requestVideoFrameCallback(step);
+    }
+
+    /* ------------------------------------------------------------------
+       Reconnect scheduler
+       ------------------------------------------------------------------ */
+    function scheduleRetry(reason) {
+      clearTimeout(retryTimer);
+
+      // Some mobile / office networks block UDP and ICE, so WebRTC simply
+      // cannot connect there. Rather than retrying forever, fall back to HLS
+      // once, automatically - HLS works over plain TCP/HTTP almost anywhere.
+      if (mode === 'webrtc') {
+        wrtcFails++;
+        if (wrtcFails >= 2) {
+          mode = 'hls';
+          wrtcFails = 0;
+          retryDelay = 2000;
+          setStatus('warn', 'SWITCHING');
+          showStage('Switching to HLS…',
+            'WebRTC is blocked on this network. Falling back to the compatible stream.', true);
+          updateModeLabels();
+          showToast('WebRTC blocked - switched to HLS');
+          retryTimer = setTimeout(() => startPlayback(), 1200);
+          return;
+        }
+      }
+
+      setStatus('warn', 'RECONNECTING');
+      showStage('Reconnecting…', reason || 'The feed stopped. Retrying automatically.', true);
+      retryTimer = setTimeout(() => {
+        retryDelay = Math.min(retryDelay * 1.6, 10000);
+        startPlayback();
+      }, retryDelay);
+    }
+
+    /* ------------------------------------------------------------------
+       Teardown
+       ------------------------------------------------------------------ */
+    function teardown() {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+      try { if (reader) reader.close(); } catch (e) {}
+      reader = null;
+      try { if (hls) { hls.destroy(); } } catch (e) {}
+      hls = null;
+      try { video.srcObject = null; } catch (e) {}
+      video.removeAttribute('src');
+      try { video.load(); } catch (e) {}
+      firstFrame = false;
+    }
+
+    /* ------------------------------------------------------------------
+       WebRTC (WHEP) playback using MediaMTX's own reader
+       ------------------------------------------------------------------ */
+    async function startWebRTC() {
+      showStage('Connecting to camera…', 'Negotiating WebRTC through the cloud relay.', true);
+      setStatus('warn', 'CONNECTING');
+
+      try {
+        await loadScript(READER_JS);
+      } catch (e) {
+        return scheduleRetry('Could not load the WebRTC player helper.');
+      }
+
+      if (typeof MediaMTXWebRTCReader !== 'function') {
+        return scheduleRetry('WebRTC helper unavailable.');
+      }
+
+      reader = new MediaMTXWebRTCReader({
+        url: WHEP_URL,
+        onError: (err) => {
+          scheduleRetry(String(err || 'WebRTC connection failed.'));
+        },
+        onTrack: (evt) => {
+          video.srcObject = evt.streams[0];
+          video.play().catch(() => {});
+          onPlaybackStarted();
+        },
+      });
+    }
+
+    /* ------------------------------------------------------------------
+       HLS playback
+       ------------------------------------------------------------------ */
+    async function startHLS() {
+      showStage('Connecting to camera…', 'Loading the HLS stream.', true);
+      setStatus('warn', 'CONNECTING');
+
+      try {
+        await loadScript(HLS_JS);
+      } catch (e) {
+        // Fall back to the browser's native HLS (Safari / iOS)
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = HLS_URL + '?autoplay=1';
+          video.play().catch(() => {});
+          onPlaybackStarted();
+          return;
+        }
+        return scheduleRetry('Could not load the HLS player.');
+      }
+
+      if (window.Hls && Hls.isSupported()) {
+        hls = new Hls({ maxLiveSyncPlaybackRate: 1.5, lowLatencyMode: true });
+        hls.on(Hls.Events.ERROR, (evt, data) => {
+          if (!data || !data.fatal) return;
+          scheduleRetry('Stream interrupted (' + (data.details || 'network error') + ').');
+        });
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().catch(() => {});
+          onPlaybackStarted();
+        });
+        hls.loadSource(HLS_URL);
+        hls.attachMedia(video);
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = HLS_URL;
+        video.play().catch(() => {});
+        onPlaybackStarted();
+      } else {
+        scheduleRetry('This browser supports neither HLS.js nor native HLS.');
+      }
+    }
+
+    function onPlaybackStarted() {
+      firstFrame = false;
+      setStatus('live', 'LIVE');
+      startFpsProbe();
+      hideStage();
+      retryDelay = 2000;
+      wrtcFails = 0;
+    }
+
+    video.addEventListener('playing', () => {
+      hideStage();
+      setStatus('live', 'LIVE');
+      retryDelay = 2000;
+      wrtcFails = 0;
+      startFpsProbe();
+    });
+
+    video.addEventListener('loadedmetadata', () => {
+      if (video.videoWidth) {
+        document.getElementById('metaRes').textContent =
+          video.videoWidth + ' × ' + video.videoHeight;
+      }
+    });
+
+    video.addEventListener('error', () => {
+      if (mode === 'hls') scheduleRetry('Video element reported an error.');
+    });
+
+    /* ------------------------------------------------------------------
+       Start / switch
+       ------------------------------------------------------------------ */
+    function startPlayback() {
+      teardown();
+      updateModeLabels();
+      firstFrame = false;
+      document.getElementById('metaRes').textContent = '—';
+      document.getElementById('metaFps').textContent = 'Waiting for first frame';
+      if (mode === 'webrtc') startWebRTC();
+      else startHLS();
+    }
+
+    function reloadStream(showMsg) {
+      retryDelay = 2000;
+      startPlayback();
+      if (showMsg) showToast('Reconnecting…');
+    }
+
+    function switchProtocol(p) {
+      if (mode === p) return;
+      mode = p;
+      wrtcFails = 0;
+      retryDelay = 2000;
+      startPlayback();
+      showToast(p === 'webrtc' ? 'WebRTC low-latency mode' : 'HLS compatibility mode');
+    }
+
+    function toggleFullscreen() {
+      const card = document.getElementById('videoCard');
+      if (!document.fullscreenElement) {
+        card.requestFullscreen().catch(err => alert('Fullscreen blocked: ' + err.message));
+      } else {
+        document.exitFullscreen();
+      }
+    }
+
+    /* ------------------------------------------------------------------
+       Stream health poll: drives the LIVE / OFFLINE badge honestly
+       ------------------------------------------------------------------ */
+    async function pollHealth() {
+      try {
+        const res = await fetch(HLS_URL + '?t=' + Date.now(), { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const text = await res.text();
+        online = text.includes('#EXTM3U');
+
+        // Pull resolution / fps out of the master playlist
+        const resMatch = text.match(/RESOLUTION=(\d+x\d+)/);
+        const fpsMatch = text.match(/FRAME-RATE=([\d.]+)/);
+        if (resMatch) document.getElementById('overlayTag').textContent =
+          'Live Camera Feed • ' + resMatch[1];
+        if (resMatch && !video.videoWidth) {
+          document.getElementById('metaRes').textContent =
+            resMatch[1].replace('x', ' × ');
+        }
+        if (fpsMatch && !video.videoWidth) {
+          document.getElementById('metaFps').textContent = fpsMatch[1] + ' FPS • stream ready';
+        }
+
+        if (!online) {
+          setStatus('off', 'OFFLINE');
+          if (!firstFrame) showStage('Camera is offline',
+            'The streaming PC is not publishing right now. This page reconnects by itself.', false);
+        } else if (firstFrame) {
+          setStatus('live', 'LIVE');
+        }
+      } catch (e) {
+        online = false;
+        setStatus('off', 'OFFLINE');
+        if (firstFrame) {
+          showStage('Connection lost',
+            'The relay is unreachable. Retrying automatically…', true);
+        }
+      }
+    }
+
+    video.addEventListener('playing', () => { firstFrame = true; });
+
+    /* ------------------------------------------------------------------
+       PIN gate
+       ------------------------------------------------------------------ */
+    function checkPin() {
+      if (localStorage.getItem('cam_auth_token') === 'authorized') {
+        document.getElementById('pinModal').style.display = 'none';
+        startPlayback();
+      } else {
+        document.getElementById('pinModal').style.display = 'flex';
+      }
+    }
+
+    function verifyPin() {
+      const val = document.getElementById('pinInput').value.trim();
+      if (val === PIN) {
+        localStorage.setItem('cam_auth_token', 'authorized');
+        document.getElementById('pinModal').style.display = 'none';
+        startPlayback();
+        showToast('Access granted');
+      } else {
+        alert('Incorrect PIN.');
+        document.getElementById('pinInput').value = '';
+      }
+    }
+
+    document.getElementById('pinInput')?.addEventListener('keyup', (e) => {
+      if (e.key === 'Enter') verifyPin();
+    });
+
+    /* ------------------------------------------------------------------
+       Clock + boot
+       ------------------------------------------------------------------ */
+    setInterval(() => {
+      const el = document.getElementById('clock');
+      if (el) {
+        el.textContent = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }) + ' IST';
+      }
+    }, 1000);
+
+    window.addEventListener('load', () => {
+      updateModeLabels();
+      checkPin();
+      pollHealth();
+      pollTimer = setInterval(pollHealth, 5000);
+    });
+
+    // Coming back from a sleeping phone/laptop: rebuild the pipeline.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && firstFrame === false) {
+        pollHealth();
+        if (!reader && !hls && mode === 'webrtc') startPlayback();
+      }
+    });
+
+    window.addEventListener('beforeunload', () => {
+      try { if (reader) reader.close(); } catch (e) {}
+      try { if (hls) hls.destroy(); } catch (e) {}
+    });
+  </script>
+</body>
+</html>

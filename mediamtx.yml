@@ -1,0 +1,36 @@
+# =============================================================================
+#  MediaMTX config -- REFERENCE COPY of the file running on the VPS at
+#  /root/mediamtx/mediamtx.yml  (bind-mounted into the `mediamtx` container).
+#
+#  This local copy is documentation only; editing it here does NOT change the
+#  server. Copy it to the VPS and `docker restart mediamtx` to apply.
+#
+#  Why these HLS values:
+#    The camera cuts a keyframe only every ~3s, so HLS segments must be 3s to
+#    match. Segments shorter than the keyframe interval made MediaMTX emit
+#    #EXT-X-GAP entries and silently drop roughly half the frames.
+#    (hlsSegmentCount must be >= 7.)
+# =============================================================================
+
+api: yes
+apiAddress: :9997
+
+rtsp: yes
+rtspAddress: :8554
+
+webrtc: yes
+webrtcAddress: :8889
+webrtcAdditionalHosts:
+  - 87.232.72.64
+
+hls: yes
+hlsAddress: :8888
+hlsAlwaysRemux: yes
+hlsVariant: fmp4
+hlsSegmentCount: 7
+hlsSegmentDuration: 3s
+hlsMuxerCloseAfter: 60s
+
+paths:
+  camera:
+  all:

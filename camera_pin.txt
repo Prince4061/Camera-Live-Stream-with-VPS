@@ -1,0 +1,27 @@
+CAMERA PORTAL - ACCESS PIN
+==========================
+
+PIN: 1234
+
+This PIN is the one the web portal asks for before showing the camera.
+
+To change it, edit this line in dashboard\index.html on the streaming PC:
+
+    const PIN = '1234';
+
+...then copy the updated index.html to the VPS at /root/camera-web/index.html
+(or simply ask for it to be updated).
+
+IMPORTANT - what this PIN does and does not do
+---------------------------------------------
+The PIN hides the video inside the web page. It does NOT encrypt the stream:
+someone who knows the raw MediaMTX links can still open the feed directly.
+
+Links that bypass the portal:
+    http://87.232.72.64:8889/camera      (WebRTC player page)
+    http://87.232.72.64:8888/camera      (HLS player page)
+    rtsp://87.232.72.64:8554/camera      (raw RTSP)
+
+If you want real protection (password required by the media server itself,
+not just the web page), that is a separate change - ask for it and it can be
+added with MediaMTX authentication.
